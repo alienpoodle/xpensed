@@ -424,9 +424,16 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedDayDisplay.textContent = formatDate(dateString);
         renderDayView(dateString);
 
-        // Switch to Day View tab
-        const dayViewTab = new bootstrap.Tab(document.getElementById('day-view-tab'));
-        dayViewTab.show();
+        // Switch to Day View tab programmatically
+        // Get the tab element by its ID
+        const dayViewTabElement = document.getElementById('day-view-tab');
+        // Check if the element exists and is a valid tab trigger
+        if (dayViewTabElement) {
+            const dayViewTab = new bootstrap.Tab(dayViewTabElement);
+            dayViewTab.show();
+        } else {
+            console.error("Day View Tab element not found! Cannot switch to Day View.");
+        }
     }
 
     function renderDayView(dateString) {
@@ -480,7 +487,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTransactions();
     populateQuarterSelect(); // Populates select and calls updateQuarterlyReport
     renderCalendar();
-
 
 
     // Handle modal show/hide events to reset form for new entries
