@@ -1,5 +1,5 @@
 body {
-    padding-top: 56px; 
+    padding-top: 56px; /* Adjust for fixed navbar */
 }
 
 .calendar-table th, .calendar-table td {
@@ -8,6 +8,7 @@ body {
     vertical-align: top;
     padding: 5px;
     font-size: 0.9em;
+    cursor: pointer; /* Indicate clickable days */
 }
 
 .calendar-day-number {
