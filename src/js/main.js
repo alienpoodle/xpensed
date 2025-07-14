@@ -481,16 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     populateQuarterSelect(); // Populates select and calls updateQuarterlyReport
     renderCalendar();
 
-    // Ensure tab content is initialized correctly by Bootstrap
-    const triggerTabList = document.querySelectorAll('#navbarNav .nav-link');
-    triggerTabList.forEach(triggerEl => {
-        const tabTrigger = new bootstrap.Tab(triggerEl);
 
-        triggerEl.addEventListener('click', event => {
-            event.preventDefault();
-            tabTrigger.show();
-        });
-    });
 
     // Handle modal show/hide events to reset form for new entries
     const addExpenseIncomeModal = document.getElementById('addExpenseIncomeModal');
