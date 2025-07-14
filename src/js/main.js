@@ -581,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedDayForDayView) {
                 renderDayView(selectedDayForDayView);
             } else {
-                // If no day is selected yet, maybe default to today or show a message
+                // If no day is selected yet, default to today or show a message
                 selectedDayForDayView = new Date().toISOString().split('T')[0]; // Default to today
                 selectedDayDisplay.textContent = formatDate(selectedDayForDayView);
                 renderDayView(selectedDayForDayView);
@@ -594,15 +594,20 @@ document.addEventListener('DOMContentLoaded', () => {
     transactionForm.addEventListener('submit', addOrUpdateTransaction);
 
     // Initial render calls for the *default active tab* and global elements
-    // Only call rendering for the tab that is active on page load
-    updateMonthlyBudgetDisplay(); // Always update this as it's global budget info
-    renderTransactions(); // Call for initial "Expenses & Income" tab if it were default.
-                          // It's not default, so it will be called by 'shown.bs.tab'
-
-    // Since 'Monthly Budget' is the initial active tab:
-    // Its content (updateMonthlyBudgetDisplay) is already handled by the initial `updateMonthlyBudgetDisplay()`
-    // and its `shown.bs.tab` listener will ensure it's updated on subsequent visits.
-    // No explicit call needed here for the other tabs, as their `shown.bs.tab` listeners will handle them.
+    // 'Monthly Budget' is the initial active tab, so its content is handled by updateMonthlyBudgetDisplay()
+    updateMonthlyBudgetDisplay();
 
     // Set today's date as default for transaction date input on initial load
-    transactionDateInput.valueAsDate = new
+    transactionDateInput.valueAsDate = new Date();
+
+    // Handle modal show/hide events to reset form for new entries
+    const addExpenseIncomeModal = document.getElementById('addExpenseIncomeModal');
+    if (addExpenseIncomeModal) { // Safety check
+        addExpenseIncomeModal.addEventListener('hidden.bs.modal', function () {
+            transactionForm.reset();
+            transactionIdInput.value = ''; // Clear ID for new transaction
+            // Re-set today's date when modal is hidden, ready for a new entry
+            transactionDateInput.valueAsDate = new Date();
+        });
+    }
+});
