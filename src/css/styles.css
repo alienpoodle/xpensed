@@ -1,0 +1,42 @@
+body {
+    padding-top: 56px; 
+}
+
+.calendar-table th, .calendar-table td {
+    width: 14.28%; /* 100% / 7 days */
+    height: 100px; /* Adjust as needed */
+    vertical-align: top;
+    padding: 5px;
+    font-size: 0.9em;
+}
+
+.calendar-day-number {
+    font-weight: bold;
+    font-size: 1.2em;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.calendar-day-content {
+    font-size: 0.8em;
+    color: #555;
+}
+
+.calendar-day-content .income {
+    color: green;
+    font-weight: bold;
+}
+
+.calendar-day-content .expense {
+    color: red;
+    font-weight: bold;
+}
+
+.today {
+    background-color: #e6f7ff; /* Light blue for today's date */
+    border: 1px solid #99d6ff;
+}
+
+.has-transactions {
+    background-color: #fffacd; /* Light yellow if day has transactions */
+}
