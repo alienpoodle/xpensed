@@ -55,7 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getMonthName(monthIndex) {
-        const date = new Date(currentYear, monthIndex);
+        // Corrected: use a fixed year (e.g., 2000) with the monthIndex to get the month name reliably
+        const date = new Date(2000, monthIndex);
         return date.toLocaleDateString('en-US', { month: 'long' });
     }
 
@@ -132,7 +133,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderDayView(selectedDayForDayView); // Update day view if active
         }
         transactionForm.reset();
-        bootstrap.Modal.getInstance(document.getElementById('addExpenseIncomeModal')).hide(); // Hide modal
+        // Correct way to hide a modal programmatically in Bootstrap 5
+        const modalElement = document.getElementById('addExpenseIncomeModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
     }
 
     function deleteTransaction(id) {
@@ -157,7 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
             transactionAmountInput.value = transaction.amount;
             transactionTypeInput.value = transaction.type;
             transactionCategoryInput.value = transaction.category;
-            const modal = new bootstrap.Modal(document.getElementById('addExpenseIncomeModal'));
+            // Correct way to show a modal programmatically in Bootstrap 5
+            const modalElement = document.getElementById('addExpenseIncomeModal');
+            const modal = new bootstrap.Modal(modalElement);
             modal.show();
         }
     }
@@ -194,8 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Quarterly Report Functions ---
 
     function populateQuarterSelect() {
-        const startYear = Math.min(...transactions.map(t => new Date(t.date).getFullYear()), new Date().getFullYear());
-        const endYear = Math.max(...transactions.map(t => new Date(t.date).getFullYear()), new Date().getFullYear());
+        // Ensure years are extracted robustly, considering no transactions initially
+        const yearsInTransactions = transactions.map(t => new Date(t.date).getFullYear());
+        const uniqueYears = [...new Set(yearsInTransactions)];
+        
+        let startYear = new Date().getFullYear();
+        let endYear = new Date().getFullYear();
+
+        if (uniqueYears.length > 0) {
+            startYear = Math.min(...uniqueYears);
+            endYear = Math.max(...uniqueYears);
+        }
+        
         const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
 
         quarterlySelect.innerHTML = '';
@@ -282,13 +300,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const trendData = {};
         for (let i = 0; i < 3; i++) {
             const monthIndex = ((quarter - 1) * 3) + i;
-            const monthName = getMonthName(monthIndex);
+            // Use a fixed year for getMonthName to ensure consistency
+            const tempDate = new Date(2000, monthIndex);
+            const monthName = tempDate.toLocaleDateString('en-US', { month: 'long' });
             trendData[monthName] = { income: 0, expense: 0 };
         }
 
         data.forEach(t => {
             const date = new Date(t.date);
-            const monthName = getMonthName(date.getMonth());
+            // Use a fixed year for getMonthName consistency
+            const tempDate = new Date(2000, date.getMonth());
+            const monthName = tempDate.toLocaleDateString('en-US', { month: 'long' });
             if (trendData[monthName]) { // Ensure it falls within the selected quarter's months
                 if (t.type === 'income') {
                     trendData[monthName].income += t.amount;
@@ -424,13 +446,13 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedDayDisplay.textContent = formatDate(dateString);
         renderDayView(dateString);
 
-        // Switch to Day View tab programmatically
-        // Get the tab element by its ID
+        // This is the primary point of interaction with Bootstrap tabs programmatically.
+        // The most reliable way to activate a tab is to trigger a click event on its
+        // associated navigation link, letting Bootstrap's native event listeners handle it.
         const dayViewTabElement = document.getElementById('day-view-tab');
-        // Check if the element exists and is a valid tab trigger
+
         if (dayViewTabElement) {
-            const dayViewTab = new bootstrap.Tab(dayViewTabElement);
-            dayViewTab.show();
+            dayViewTabElement.click(); // Simulate a click on the tab link
         } else {
             console.error("Day View Tab element not found! Cannot switch to Day View.");
         }
@@ -446,14 +468,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (dayTransactions.length === 0) {
             const row = dayTransactionsTableBody.insertRow();
-            row.insertCell().colSpan = 6;
-            row.insertCell().textContent = 'No transactions for this day.';
+            // Using a single cell spanning all columns with text-center for better display
+            const cell = row.insertCell();
+            cell.colSpan = 6;
+            cell.textContent = 'No transactions for this day.';
+            cell.classList.add('text-center', 'text-muted', 'py-3'); // Add some styling
             return;
         }
 
         dayTransactions.forEach(t => {
             const row = dayTransactionsTableBody.insertRow();
-            row.insertCell().textContent = new Date(t.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); // Basic time
+            // Note: For actual transaction time, you'd need to store time in your data.
+            // Currently, t.date is just a date string (YYYY-MM-DD), so time will be 00:00 or current time.
+            row.insertCell().textContent = new Date(t.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
             row.insertCell().textContent = t.description;
             row.insertCell().textContent = `$${t.amount.toFixed(2)}`;
             row.insertCell().textContent = t.type.charAt(0).toUpperCase() + t.type.slice(1);
@@ -488,14 +515,22 @@ document.addEventListener('DOMContentLoaded', () => {
     populateQuarterSelect(); // Populates select and calls updateQuarterlyReport
     renderCalendar();
 
+    // Removed: Manual tab initialization. Bootstrap handles this via data-bs-toggle.
+    // The previous code snippet was causing the TypeError.
 
     // Handle modal show/hide events to reset form for new entries
     const addExpenseIncomeModal = document.getElementById('addExpenseIncomeModal');
-    addExpenseIncomeModal.addEventListener('hidden.bs.modal', function () {
-        transactionForm.reset();
-        transactionIdInput.value = ''; // Clear ID for new transaction
-    });
+    if (addExpenseIncomeModal) { // Safety check
+        addExpenseIncomeModal.addEventListener('hidden.bs.modal', function () {
+            transactionForm.reset();
+            transactionIdInput.value = ''; // Clear ID for new transaction
+            // Re-set today's date when modal is hidden, ready for a new entry
+            transactionDateInput.valueAsDate = new Date();
+        });
+    }
 
-    // Set today's date as default for transaction date input
+
+    // Set today's date as default for transaction date input on initial load
+    // This will run once when the DOM content is loaded.
     transactionDateInput.valueAsDate = new Date();
 });
