@@ -38,6 +38,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const daySummary = document.getElementById('daySummary');
     const dayTransactionsTableBody = document.getElementById('dayTransactionsTableBody');
 
+    // --- Get Tab Pane Elements ---
+    const monthlyBudgetTabPane = document.getElementById('monthly-budget-section');
+    const expensesTabPane = document.getElementById('expenses-section');
+    const quarterlyTabPane = document.getElementById('quarterly-section');
+    const calendarTabPane = document.getElementById('calendar-section');
+    const dayViewTabPane = document.getElementById('day-view-section');
+
 
     // --- Helper Functions ---
 
@@ -55,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getMonthName(monthIndex) {
-        // Corrected: use a fixed year (e.g., 2000) with the monthIndex to get the month name reliably
         const date = new Date(2000, monthIndex);
         return date.toLocaleDateString('en-US', { month: 'long' });
     }
@@ -82,7 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
             saveMonthlyBudget();
             updateMonthlyBudgetDisplay();
             monthlyBudgetInput.value = ''; // Clear input
-            renderTransactions(); // Re-render to update budget impact
+            // Re-render transactions/calendar if budget affects their display (e.g., color coding)
+            // renderTransactions(); // Not strictly needed here unless transactions list uses budget info
+            // renderCalendar(); // Not strictly needed here unless calendar uses budget info
         } else {
             alert('Please enter a valid budget amount.');
         }
@@ -126,12 +134,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         saveTransactions();
-        renderTransactions();
-        updateMonthlyBudgetDisplay();
-        renderCalendar(); // Update calendar as well
-        if (selectedDayForDayView) {
-            renderDayView(selectedDayForDayView); // Update day view if active
+        // IMPORTANT: Re-render all relevant sections after adding/updating a transaction
+        // This ensures data is fresh across all views.
+        updateMonthlyBudgetDisplay(); // Might affect remaining budget
+        renderTransactions(); // Updates transactions list
+        renderCalendar(); // Updates calendar if new transactions affect a day
+        if (quarterlyTabPane && quarterlyTabPane.classList.contains('show')) { // Only update if quarterly tab is active
+             updateQuarterlyReport(); // Re-render quarterly charts
         }
+        if (dayViewTabPane && dayViewTabPane.classList.contains('show') && selectedDayForDayView) { // Only update if day view is active
+            renderDayView(selectedDayForDayView); // Re-render day view
+        }
+
         transactionForm.reset();
         // Correct way to hide a modal programmatically in Bootstrap 5
         const modalElement = document.getElementById('addExpenseIncomeModal');
@@ -145,11 +159,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm('Are you sure you want to delete this transaction?')) {
             transactions = transactions.filter(t => t.id !== id);
             saveTransactions();
-            renderTransactions();
+            // IMPORTANT: Re-render all relevant sections after deleting a transaction
             updateMonthlyBudgetDisplay();
-            renderCalendar(); // Update calendar
-            if (selectedDayForDayView) {
-                renderDayView(selectedDayForDayView); // Update day view if active
+            renderTransactions();
+            renderCalendar();
+            if (quarterlyTabPane && quarterlyTabPane.classList.contains('show')) {
+                updateQuarterlyReport();
+            }
+            if (dayViewTabPane && dayViewTabPane.classList.contains('show') && selectedDayForDayView) {
+                renderDayView(selectedDayForDayView);
             }
         }
     }
@@ -175,6 +193,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTransactions() {
         transactionsTableBody.innerHTML = ''; // Clear existing rows
         const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        if (sortedTransactions.length === 0) {
+            const row = transactionsTableBody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 6;
+            cell.textContent = 'No transactions recorded yet.';
+            cell.classList.add('text-center', 'text-muted', 'py-3');
+            return;
+        }
 
         sortedTransactions.forEach(t => {
             const row = transactionsTableBody.insertRow();
@@ -202,38 +229,52 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Quarterly Report Functions ---
 
     function populateQuarterSelect() {
-        // Ensure years are extracted robustly, considering no transactions initially
         const yearsInTransactions = transactions.map(t => new Date(t.date).getFullYear());
-        const uniqueYears = [...new Set(yearsInTransactions)];
-        
+        const uniqueYears = [...new Set(yearsInTransactions)].sort((a, b) => a - b); // Sort years ascending
+
         let startYear = new Date().getFullYear();
         let endYear = new Date().getFullYear();
 
         if (uniqueYears.length > 0) {
             startYear = Math.min(...uniqueYears);
             endYear = Math.max(...uniqueYears);
+        } else { // If no transactions, still show current year's quarters
+            startYear = new Date().getFullYear();
+            endYear = new Date().getFullYear();
         }
         
-        const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
-
         quarterlySelect.innerHTML = '';
-        years.forEach(year => {
+        for (let year = startYear; year <= endYear; year++) {
             for (let q = 1; q <= 4; q++) {
                 const option = document.createElement('option');
                 option.value = `${year}-Q${q}`;
                 option.textContent = `${year} Q${q}`;
                 quarterlySelect.appendChild(option);
             }
-        });
-        // Select current quarter
+        }
+        // Select current quarter by default
         const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
-        quarterlySelect.value = `${new Date().getFullYear()}-Q${currentQuarter}`;
-        updateQuarterlyReport();
+        const defaultQuarterValue = `${new Date().getFullYear()}-Q${currentQuarter}`;
+        if (quarterlySelect.querySelector(`option[value="${defaultQuarterValue}"]`)) {
+            quarterlySelect.value = defaultQuarterValue;
+        } else if (quarterlySelect.options.length > 0) {
+            // Fallback to the first available quarter if current quarter doesn't exist (e.g., no transactions for current year yet)
+            quarterlySelect.value = quarterlySelect.options[0].value;
+        }
+
+        updateQuarterlyReport(); // Initial update when select is populated
     }
 
     function updateQuarterlyReport() {
         const selectedValue = quarterlySelect.value;
-        if (!selectedValue) return;
+        if (!selectedValue) {
+            // Clear displays if no quarter is selected (e.g., no transactions ever)
+            quarterlyIncomeSpan.textContent = (0.00).toFixed(2);
+            quarterlyExpensesSpan.textContent = (0.00).toFixed(2);
+            quarterlySavingsSpan.textContent = (0.00).toFixed(2);
+            renderQuarterlyCharts([], null, null); // Render empty charts
+            return;
+        }
 
         const [yearStr, quarterStr] = selectedValue.split('-');
         const year = parseInt(yearStr);
@@ -290,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 plugins: {
                     title: {
                         display: true,
-                        text: `Expense Distribution for ${year} Q${quarter}`
+                        text: year && quarter ? `Expense Distribution for ${year} Q${quarter}` : 'Expense Distribution'
                     }
                 }
             }
@@ -298,18 +339,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Chart 2: Income vs. Expense Trend (Monthly within the quarter)
         const trendData = {};
-        for (let i = 0; i < 3; i++) {
-            const monthIndex = ((quarter - 1) * 3) + i;
-            // Use a fixed year for getMonthName to ensure consistency
-            const tempDate = new Date(2000, monthIndex);
-            const monthName = tempDate.toLocaleDateString('en-US', { month: 'long' });
-            trendData[monthName] = { income: 0, expense: 0 };
+        if (year && quarter) {
+            for (let i = 0; i < 3; i++) {
+                const monthIndex = ((quarter - 1) * 3) + i;
+                const tempDate = new Date(2000, monthIndex); // Use fixed year for month name consistency
+                const monthName = tempDate.toLocaleDateString('en-US', { month: 'long' });
+                trendData[monthName] = { income: 0, expense: 0 };
+            }
         }
+
 
         data.forEach(t => {
             const date = new Date(t.date);
-            // Use a fixed year for getMonthName consistency
-            const tempDate = new Date(2000, date.getMonth());
+            const tempDate = new Date(2000, date.getMonth()); // Use fixed year for month name consistency
             const monthName = tempDate.toLocaleDateString('en-US', { month: 'long' });
             if (trendData[monthName]) { // Ensure it falls within the selected quarter's months
                 if (t.type === 'income') {
@@ -348,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 plugins: {
                     title: {
                         display: true,
-                        text: `Income vs. Expense Trend for ${year} Q${quarter}`
+                        text: year && quarter ? `Income vs. Expense Trend for ${year} Q${quarter}` : 'Income vs. Expense Trend'
                     }
                 },
                 scales: {
@@ -446,11 +488,8 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedDayDisplay.textContent = formatDate(dateString);
         renderDayView(dateString);
 
-        // This is the primary point of interaction with Bootstrap tabs programmatically.
-        // The most reliable way to activate a tab is to trigger a click event on its
-        // associated navigation link, letting Bootstrap's native event listeners handle it.
+        // Programmatically switch to Day View tab by triggering a click
         const dayViewTabElement = document.getElementById('day-view-tab');
-
         if (dayViewTabElement) {
             dayViewTabElement.click(); // Simulate a click on the tab link
         } else {
@@ -468,19 +507,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (dayTransactions.length === 0) {
             const row = dayTransactionsTableBody.insertRow();
-            // Using a single cell spanning all columns with text-center for better display
             const cell = row.insertCell();
             cell.colSpan = 6;
             cell.textContent = 'No transactions for this day.';
-            cell.classList.add('text-center', 'text-muted', 'py-3'); // Add some styling
+            cell.classList.add('text-center', 'text-muted', 'py-3');
             return;
         }
 
         dayTransactions.forEach(t => {
             const row = dayTransactionsTableBody.insertRow();
-            // Note: For actual transaction time, you'd need to store time in your data.
-            // Currently, t.date is just a date string (YYYY-MM-DD), so time will be 00:00 or current time.
-            row.insertCell().textContent = new Date(t.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            row.insertCell().textContent = new Date(t.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }); // Use hour12: false for 24-hour
             row.insertCell().textContent = t.description;
             row.insertCell().textContent = `$${t.amount.toFixed(2)}`;
             row.insertCell().textContent = t.type.charAt(0).toUpperCase() + t.type.slice(1);
@@ -492,8 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
             editBtn.textContent = 'Edit';
             editBtn.onclick = () => {
                 editTransaction(t.id);
-                // After editing, the modal will hide, but stay on day view if possible
-                // The addOrUpdateTransaction function will re-renderDayView
             };
             actionsCell.appendChild(editBtn);
 
@@ -506,31 +540,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Event Listeners and Initial Load ---
-    transactionForm.addEventListener('submit', addOrUpdateTransaction);
+    // --- Event Listeners for Tab Switching (The Key Fix) ---
 
-    // Initial render calls
-    updateMonthlyBudgetDisplay();
-    renderTransactions();
-    populateQuarterSelect(); // Populates select and calls updateQuarterlyReport
-    renderCalendar();
+    // Monthly Budget Tab
+    if (monthlyBudgetTabPane) {
+        monthlyBudgetTabPane.addEventListener('shown.bs.tab', () => {
+            console.log('Monthly Budget tab shown. Updating display...');
+            updateMonthlyBudgetDisplay();
+        });
+    }
 
-    // Removed: Manual tab initialization. Bootstrap handles this via data-bs-toggle.
-    // The previous code snippet was causing the TypeError.
+    // Expenses Tab
+    if (expensesTabPane) {
+        expensesTabPane.addEventListener('shown.bs.tab', () => {
+            console.log('Expenses tab shown. Rendering transactions...');
+            renderTransactions();
+        });
+    }
 
-    // Handle modal show/hide events to reset form for new entries
-    const addExpenseIncomeModal = document.getElementById('addExpenseIncomeModal');
-    if (addExpenseIncomeModal) { // Safety check
-        addExpenseIncomeModal.addEventListener('hidden.bs.modal', function () {
-            transactionForm.reset();
-            transactionIdInput.value = ''; // Clear ID for new transaction
-            // Re-set today's date when modal is hidden, ready for a new entry
-            transactionDateInput.valueAsDate = new Date();
+    // Quarterly Report Tab
+    if (quarterlyTabPane) {
+        quarterlyTabPane.addEventListener('shown.bs.tab', () => {
+            console.log('Quarterly Report tab shown. Populating select and updating report...');
+            populateQuarterSelect(); // This will also call updateQuarterlyReport()
+        });
+    }
+
+    // Calendar View Tab
+    if (calendarTabPane) {
+        calendarTabPane.addEventListener('shown.bs.tab', () => {
+            console.log('Calendar View tab shown. Rendering calendar...');
+            renderCalendar();
+        });
+    }
+
+    // Day View Tab (only needs to render if a day has been selected)
+    if (dayViewTabPane) {
+        dayViewTabPane.addEventListener('shown.bs.tab', () => {
+            console.log('Day View tab shown.');
+            if (selectedDayForDayView) {
+                renderDayView(selectedDayForDayView);
+            } else {
+                // If no day is selected yet, maybe default to today or show a message
+                selectedDayForDayView = new Date().toISOString().split('T')[0]; // Default to today
+                selectedDayDisplay.textContent = formatDate(selectedDayForDayView);
+                renderDayView(selectedDayForDayView);
+            }
         });
     }
 
 
+    // --- Other Event Listeners and Initial Load ---
+    transactionForm.addEventListener('submit', addOrUpdateTransaction);
+
+    // Initial render calls for the *default active tab* and global elements
+    // Only call rendering for the tab that is active on page load
+    updateMonthlyBudgetDisplay(); // Always update this as it's global budget info
+    renderTransactions(); // Call for initial "Expenses & Income" tab if it were default.
+                          // It's not default, so it will be called by 'shown.bs.tab'
+
+    // Since 'Monthly Budget' is the initial active tab:
+    // Its content (updateMonthlyBudgetDisplay) is already handled by the initial `updateMonthlyBudgetDisplay()`
+    // and its `shown.bs.tab` listener will ensure it's updated on subsequent visits.
+    // No explicit call needed here for the other tabs, as their `shown.bs.tab` listeners will handle them.
+
     // Set today's date as default for transaction date input on initial load
-    // This will run once when the DOM content is loaded.
-    transactionDateInput.valueAsDate = new Date();
-});
+    transactionDateInput.valueAsDate = new
